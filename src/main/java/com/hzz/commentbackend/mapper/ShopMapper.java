@@ -1,8 +1,8 @@
 package com.hzz.commentbackend.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.hzz.commentbackend.entity.User;
+import com.hzz.commentbackend.entity.Shop;
 
-public interface UserMapper extends BaseMapper<User> {
+public interface ShopMapper extends BaseMapper<Shop> {
 
 }
