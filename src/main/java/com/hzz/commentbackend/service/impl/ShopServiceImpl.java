@@ -10,21 +10,14 @@ import com.hzz.commentbackend.mapper.ShopMapper;
 import com.hzz.commentbackend.service.IShopService;
 import com.hzz.commentbackend.utils.RedisConstants;
 import com.hzz.commentbackend.utils.SystemConstants;
-import org.springframework.data.geo.Distance;
-import org.springframework.data.geo.GeoResult;
-import org.springframework.data.geo.GeoResults;
-import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.domain.geo.GeoReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
-import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import static com.hzz.commentbackend.utils.RedisConstants.CACHE_SHOP_KEY;
-import static com.hzz.commentbackend.utils.RedisConstants.SHOP_GEO_KEY;
 
 
 @Service
@@ -45,10 +38,15 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             Shop shop = JSONUtil.toBean(shopJson, Shop.class);
             return Result.ok(shop);
         }
+        if (shopJson != null) { // shopJson 为转义字符和 "" 等情况
+            return Result.fail("店铺信息不存在");
+        }
+
         // 4. redis 中不存在该商户，查询数据库
         Shop shop = getById(id);
-        // 4.1 数据库中不存在该商户，返回错误
+        // 4.1 数据库中不存在该商户，将该商户设为空存入 redis，然后返回错误
         if (shop == null) {
+            stringRedisTemplate.opsForValue().set(key, "", RedisConstants.CACHE_NULL_TTL, TimeUnit.MINUTES);
             return Result.fail("Not found the shop");
         }
         // 4.2 数据库中存在该商户，将该商户存入 redis 中
