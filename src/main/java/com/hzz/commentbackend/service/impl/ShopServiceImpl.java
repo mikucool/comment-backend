@@ -21,7 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.annotation.Resource;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
+import static com.hzz.commentbackend.utils.RedisConstants.CACHE_SHOP_KEY;
 import static com.hzz.commentbackend.utils.RedisConstants.SHOP_GEO_KEY;
 
 
@@ -34,7 +36,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Override
     public Result queryById(Long id) {
-        String key = RedisConstants.CACHE_SHOP_KEY + id;
+        String key = CACHE_SHOP_KEY + id;
         // 1. 从 redis 查询商户数据
         String shopJson = stringRedisTemplate.opsForValue().get(key);
         // 2. 判断是否存在
@@ -50,7 +52,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
             return Result.fail("Not found the shop");
         }
         // 4.2 数据库中存在该商户，将该商户存入 redis 中
-        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(shop));
+        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(shop), RedisConstants.CACHE_SHOP_TTL, TimeUnit.MINUTES);
         // 返回
         return Result.ok(shop);
     }
@@ -58,8 +60,13 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     @Override
     @Transactional
     public Result update(Shop shop) {
-
-        return Result.ok("功能未完善");
+        Long id = shop.getId();
+        if (id == null) {
+            return Result.fail("id 不能为空");
+        }
+        updateById(shop);
+        stringRedisTemplate.delete(CACHE_SHOP_KEY + id);
+        return Result.ok();
     }
 
     @Override

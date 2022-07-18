@@ -12,8 +12,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> implements IShopTypeService {
@@ -23,7 +23,8 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
 
     @Override
     public Result queryBySort() {
-        String typeList = stringRedisTemplate.opsForValue().get(RedisConstants.CACHE_SHOPTYPE_KEY);
+        String key = RedisConstants.CACHE_SHOPTYPE_KEY;
+        String typeList = stringRedisTemplate.opsForValue().get(key);
         if (StrUtil.isNotBlank(typeList)) {
             List<ShopType> shopTypes = JSONUtil.toList(typeList, ShopType.class);
             return Result.ok(shopTypes);
@@ -33,7 +34,7 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
         if (shopTypes == null) {
             return Result.fail("Not found the shop type");
         }
-        stringRedisTemplate.opsForValue().set(RedisConstants.CACHE_SHOPTYPE_KEY, JSONUtil.toJsonStr(shopTypes));
+        stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(shopTypes), RedisConstants.CACHE_SHOPTYPE_TTL, TimeUnit.MINUTES);
 
         return Result.ok(shopTypes);
     }
