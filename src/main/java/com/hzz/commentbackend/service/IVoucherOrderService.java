@@ -4,4 +4,6 @@ import com.hzz.commentbackend.dto.Result;
 
 public interface IVoucherOrderService {
     Result seckillVoucher(Long voucherId);
+
+    Result createVoucherOrder(Long voucherId);
 }

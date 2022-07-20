@@ -7,8 +7,10 @@ import com.hzz.commentbackend.entity.VoucherOrder;
 import com.hzz.commentbackend.mapper.VoucherOrderMapper;
 import com.hzz.commentbackend.service.ISeckillVoucherService;
 import com.hzz.commentbackend.service.IVoucherOrderService;
+import com.hzz.commentbackend.service.IVoucherService;
 import com.hzz.commentbackend.utils.RedisIdWorker;
 import com.hzz.commentbackend.utils.UserHolder;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,7 +27,6 @@ public class IVoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vo
     private RedisIdWorker redisIdWorker;
 
     @Override
-    @Transactional
     public Result seckillVoucher(Long voucherId) {
         // 1. 查询优惠券
         SeckillVoucher seckillVoucher = iSeckillVoucherService.getById(voucherId);
@@ -41,6 +42,25 @@ public class IVoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vo
         if (seckillVoucher.getStock() < 1) {
             return Result.fail("库存不足");
         }
+
+        Long userId = UserHolder.getUser().getId();
+        synchronized (userId.toString().intern()) { // userId.toString().intern() 保证每个相同的 userId 对应相同的锁
+            // 由于事务的提交是 spring 提供的代理对象完成的，所以需要代理对象执行 createVoucherOrder 方法才能完成事务操作
+            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+            return proxy.createVoucherOrder(voucherId);
+        }
+    }
+
+
+    @Transactional
+    public Result createVoucherOrder(Long voucherId) {
+        // 判断是否已经领取过优惠券
+        Long userId = UserHolder.getUser().getId();
+        int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+        if (count > 0) {
+            return Result.fail("该用户已经领取过此优惠券了");
+        }
+
         // 5. 扣减库存
         boolean success = iSeckillVoucherService.update()
                 .setSql("stock = stock - 1")    // set stock = stock - 1
@@ -56,7 +76,6 @@ public class IVoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vo
         long orderId = redisIdWorker.nextId("order");
         voucherOrder.setId(orderId);
         // 6.2 用户 id
-        Long userId = UserHolder.getUser().getId();
         voucherOrder.setUserId(userId);
         // 6.3 代金券 id
         voucherOrder.setVoucherId(voucherId);
