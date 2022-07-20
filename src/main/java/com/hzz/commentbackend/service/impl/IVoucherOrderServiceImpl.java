@@ -9,8 +9,10 @@ import com.hzz.commentbackend.service.ISeckillVoucherService;
 import com.hzz.commentbackend.service.IVoucherOrderService;
 import com.hzz.commentbackend.service.IVoucherService;
 import com.hzz.commentbackend.utils.RedisIdWorker;
+import com.hzz.commentbackend.utils.SimpleRedisLock;
 import com.hzz.commentbackend.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,9 @@ public class IVoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vo
 
     @Resource
     private RedisIdWorker redisIdWorker;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     @Override
     public Result seckillVoucher(Long voucherId) {
@@ -44,10 +49,20 @@ public class IVoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vo
         }
 
         Long userId = UserHolder.getUser().getId();
-        synchronized (userId.toString().intern()) { // userId.toString().intern() 保证每个相同的 userId 对应相同的锁
+
+        // 获取分布式锁
+        SimpleRedisLock lock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
+        boolean isLock = lock.tryLock(5);
+        if (!isLock) {
+            // 获取锁失败
+            return Result.fail("不允许重复下单");
+        }
+        try {
             // 由于事务的提交是 spring 提供的代理对象完成的，所以需要代理对象执行 createVoucherOrder 方法才能完成事务操作
             IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
             return proxy.createVoucherOrder(voucherId);
+        } finally {
+            lock.unlock();
         }
     }
 
