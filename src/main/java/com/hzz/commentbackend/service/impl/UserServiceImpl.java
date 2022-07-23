@@ -78,7 +78,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
 
         // 6. 保存用户信息到 redis 中
-        // 6.1 以用户 phone 生成 token 作为 key 保存到 redis 中，用于判断用户是否登录
+        // 6.1 生成 token 作为 key 保存到 redis 中，用于判断用户是否登录
         String token = UUID.randomUUID().toString(true);
         // 6.2 redis 使用 Hash 保存 user 对象数据
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
