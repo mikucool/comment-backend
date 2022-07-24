@@ -30,7 +30,7 @@ public class BlogController {
 
     @PutMapping("/like/{id}")
     public Result likeBlog(@PathVariable("id") Long id) {
-        return Result.ok("尚未完善");
+        return blogService.likeBlog(id);
     }
 
     @GetMapping("/of/me")

@@ -1,5 +1,6 @@
 package com.hzz.commentbackend.service.impl;
 
+import cn.hutool.core.util.BooleanUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hzz.commentbackend.dto.Result;
@@ -9,6 +10,7 @@ import com.hzz.commentbackend.entity.User;
 import com.hzz.commentbackend.mapper.BlogMapper;
 import com.hzz.commentbackend.service.IBlogService;
 import com.hzz.commentbackend.service.IUserService;
+import com.hzz.commentbackend.utils.RedisConstants;
 import com.hzz.commentbackend.utils.SystemConstants;
 import com.hzz.commentbackend.utils.UserHolder;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -16,6 +18,8 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import java.util.List;
+
+import static com.hzz.commentbackend.utils.RedisConstants.BLOG_LIKED_KEY;
 
 @Service
 public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IBlogService {
@@ -65,15 +69,32 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         }
         Long userId = user.getId();
         // 2.判断当前登录用户是否已经点赞
-        String key = "blog:liked:" + blog.getId();
-        Double score = stringRedisTemplate.opsForZSet().score(key, userId.toString());
-        blog.setIsLike(score != null);
+        String key = BLOG_LIKED_KEY + blog.getId();
+        Boolean isMember = stringRedisTemplate.opsForSet().isMember(key, userId.toString());
+        blog.setIsLike(BooleanUtil.isTrue(isMember));
     }
 
     @Override
     public Result likeBlog(Long id) {
+        // 1. 判断当前登录用户是否点赞
+        Long userId = UserHolder.getUser().getId();
+        String key = BLOG_LIKED_KEY + id;
+        Boolean isMember = stringRedisTemplate.opsForSet().isMember(key, userId.toString());
+        if (BooleanUtil.isFalse(isMember)) {
+            // 2. 未点赞，数据库 + 1， 并添加到 redis 的 set 集合中
+            boolean isSuccess = update().setSql("liked = liked + 1").eq("id", id).update();
+            if (isSuccess) {
+                stringRedisTemplate.opsForSet().add(key, userId.toString());
+            }
+        } else {
+            // 3. 已点赞，数据库 - 1， redis 的 set 中移除该用户
+            boolean isSuccess = update().setSql("liked = liked - 1").eq("id", id).update();
+            if (isSuccess) {
+                stringRedisTemplate.opsForSet().remove(key, userId.toString());
+            }
+        }
 
-        return Result.ok("功能未完善");
+        return Result.ok();
     }
 
     @Override
