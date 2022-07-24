@@ -45,7 +45,7 @@ public class BlogController {
 
     @GetMapping("/{id}")
     public Result queryBlogById(@PathVariable("id") Long id) {
-        return Result.ok("尚未完善");
+        return blogService.queryBlogById(id);
     }
 
     @GetMapping("/likes/{id}")
