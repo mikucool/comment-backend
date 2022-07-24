@@ -1,5 +1,6 @@
 package com.hzz.commentbackend.service.impl;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hzz.commentbackend.dto.Result;
 import com.hzz.commentbackend.dto.UserDTO;
@@ -8,11 +9,13 @@ import com.hzz.commentbackend.entity.User;
 import com.hzz.commentbackend.mapper.BlogMapper;
 import com.hzz.commentbackend.service.IBlogService;
 import com.hzz.commentbackend.service.IUserService;
+import com.hzz.commentbackend.utils.SystemConstants;
 import com.hzz.commentbackend.utils.UserHolder;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.List;
 
 @Service
 public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IBlogService {
@@ -25,8 +28,18 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Override
     public Result queryHotBlog(Integer current) {
-
-        return Result.ok("功能未完善");
+        // 根据用户查询
+        Page<Blog> page = query()
+                .orderByDesc("liked")
+                .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
+        // 获取当前页数据
+        List<Blog> records = page.getRecords();
+        // 查询用户
+        records.forEach(blog -> {
+            this.queryBlogUser(blog);
+            this.isBlogLiked(blog);
+        });
+        return Result.ok(records);
     }
 
     @Override
