@@ -50,7 +50,7 @@ public class BlogController {
 
     @GetMapping("/likes/{id}")
     public Result queryBlogLikes(@PathVariable("id") Long id) {
-        return Result.ok("尚未完善");
+        return blogService.queryBlogLikes(id);
     }
 
     @GetMapping("/of/user")
