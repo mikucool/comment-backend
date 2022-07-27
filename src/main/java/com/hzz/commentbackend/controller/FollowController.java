@@ -26,6 +26,6 @@ public class FollowController {
 
     @GetMapping("/common/{id}")
     public Result followCommons(@PathVariable("id") Long id){
-        return Result.ok("not complete");
+        return followService.followCommons(id);
     }
 }
