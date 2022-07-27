@@ -22,10 +22,8 @@ public class BlogController {
 
     @PostMapping
     public Result saveBlog(@RequestBody Blog blog) {
-        UserDTO user = UserHolder.getUser();
-        blog.setUserId(user.getId());
-        blogService.save(blog);
-        return Result.ok(blog.getId());
+
+        return blogService.saveBlog(blog);
     }
 
     @PutMapping("/like/{id}")

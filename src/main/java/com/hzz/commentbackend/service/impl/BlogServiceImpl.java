@@ -8,9 +8,11 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hzz.commentbackend.dto.Result;
 import com.hzz.commentbackend.dto.UserDTO;
 import com.hzz.commentbackend.entity.Blog;
+import com.hzz.commentbackend.entity.Follow;
 import com.hzz.commentbackend.entity.User;
 import com.hzz.commentbackend.mapper.BlogMapper;
 import com.hzz.commentbackend.service.IBlogService;
+import com.hzz.commentbackend.service.IFollowService;
 import com.hzz.commentbackend.service.IUserService;
 import com.hzz.commentbackend.utils.RedisConstants;
 import com.hzz.commentbackend.utils.SystemConstants;
@@ -34,6 +36,9 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private IFollowService followService;
 
     @Override
     public Result queryHotBlog(Integer current) {
@@ -126,8 +131,24 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Override
     public Result saveBlog(Blog blog) {
+        UserDTO user = UserHolder.getUser();
+        blog.setUserId(user.getId());
+        boolean isSuccess = save(blog);
+        if (isSuccess) {
+            return Result.fail("新增笔记失败");
+        }
+        // 查询笔记作者的所有粉丝
+        List<Follow> follows = followService.query().eq("follow_user_id", user.getId()).list();
+        // 推送笔记 id 给所有粉丝
+        for (Follow follow : follows) {
+            // 获取粉丝 ID
+            Long userId = follow.getUserId();
+            // 推送
+            String key = "feed:" + userId;
+            stringRedisTemplate.opsForZSet().add(key, blog.getId().toString(), System.currentTimeMillis());
+        }
 
-        return Result.ok("功能未完善");
+        return Result.ok(blog.getId());
     }
 
     @Override
