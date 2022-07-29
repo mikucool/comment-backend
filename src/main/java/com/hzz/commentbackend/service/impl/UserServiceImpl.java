@@ -11,7 +11,9 @@ import com.hzz.commentbackend.entity.User;
 import com.hzz.commentbackend.mapper.UserMapper;
 import com.hzz.commentbackend.service.IUserService;
 import com.hzz.commentbackend.dto.Result;
+import com.hzz.commentbackend.utils.RedisConstants;
 import com.hzz.commentbackend.utils.RegexUtils;
+import com.hzz.commentbackend.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,8 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpSession;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -94,7 +98,18 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
     @Override
     public Result sign() {
-        return null;
+        // 获取当前用户
+        Long userId = UserHolder.getUser().getId();
+        // 获取日期
+        LocalDateTime time = LocalDateTime.now();
+        // 拼接 key
+        String keySuffix = time.format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        String key = USER_SIGN_KEY + userId + keySuffix;
+        // 获取当前时间是这个月的第几天
+        int dayOfMonth = time.getDayOfMonth(); // 1 - 31
+        // 写入 redis ： SETBIT key offset 1
+        stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
+        return Result.ok();
     }
 
     @Override
