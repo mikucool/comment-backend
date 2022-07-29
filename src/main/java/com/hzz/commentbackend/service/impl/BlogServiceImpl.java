@@ -9,6 +9,7 @@ import com.hzz.commentbackend.dto.Result;
 import com.hzz.commentbackend.dto.UserDTO;
 import com.hzz.commentbackend.entity.Blog;
 import com.hzz.commentbackend.entity.Follow;
+import com.hzz.commentbackend.entity.ScrollResult;
 import com.hzz.commentbackend.entity.User;
 import com.hzz.commentbackend.mapper.BlogMapper;
 import com.hzz.commentbackend.service.IBlogService;
@@ -18,15 +19,18 @@ import com.hzz.commentbackend.utils.RedisConstants;
 import com.hzz.commentbackend.utils.SystemConstants;
 import com.hzz.commentbackend.utils.UserHolder;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.hzz.commentbackend.utils.RedisConstants.BLOG_LIKED_KEY;
+import static com.hzz.commentbackend.utils.RedisConstants.FEED_KEY;
 
 @Service
 public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IBlogService {
@@ -134,7 +138,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         UserDTO user = UserHolder.getUser();
         blog.setUserId(user.getId());
         boolean isSuccess = save(blog);
-        if (isSuccess) {
+        if (!isSuccess) {
             return Result.fail("新增笔记失败");
         }
         // 查询笔记作者的所有粉丝
@@ -144,7 +148,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
             // 获取粉丝 ID
             Long userId = follow.getUserId();
             // 推送
-            String key = "feed:" + userId;
+            String key = FEED_KEY + userId;
             stringRedisTemplate.opsForZSet().add(key, blog.getId().toString(), System.currentTimeMillis());
         }
 
@@ -153,9 +157,48 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Override
     public Result queryBlogOfFollow(Long max, Integer offset) {
+        // 1. 获取当前用户
+        Long userId = UserHolder.getUser().getId();
+        // 2. 查询收件箱: ZREVRANGEBYSCORE key Max Min LIMIT offset count
+        String key = FEED_KEY + userId;
+        Set<ZSetOperations.TypedTuple<String>> typedTuples = stringRedisTemplate.opsForZSet()
+                .reverseRangeByScoreWithScores(key, 0, max, offset, 2);
+        // 3. 解析数据：blogId，minTime（时间戳）， offset（最小时间戳的个数）
+        if (typedTuples == null || typedTuples.isEmpty()) {
+            return Result.ok();
+        }
+        List<Long> ids = new ArrayList<>(typedTuples.size());
+        long minTime = 0;
+        int os = 1;
+        for (ZSetOperations.TypedTuple<String> tuple : typedTuples) {
+            ids.add(Long.valueOf(tuple.getValue()));
+            long time = tuple.getScore().longValue();
+            if (time == minTime) {
+                os++;
+            } else {
+                minTime = time;
+                os = 1;
+            }
+        }
+        // 4. 根据 id 查询 blog
+        String idStr = StrUtil.join(",", ids);
+        List<Blog> blogs = query().in("id", ids)
+                .last("ORDER BY FIELD(id," + idStr + ")").list();
+        // 4.1 封装 blog
+        for (Blog blog : blogs) {
+            // 查询 blog 有关用户的头像等信息
+            queryBlogUser(blog);
+            // 查询 blog 的点赞情况
+            isBlogLiked(blog);
+        }
 
+        // 5. 封装返回
+        ScrollResult scrollResult = new ScrollResult();
+        scrollResult.setList(blogs);
+        scrollResult.setOffset(os);
+        scrollResult.setMinTime(minTime);
 
-        return Result.ok("功能未完善");
+        return Result.ok(scrollResult);
     }
 
     private void queryBlogUser(Blog blog) {
