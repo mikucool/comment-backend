@@ -7,6 +7,8 @@ import com.hzz.commentbackend.dto.LoginFormDTO;
 import com.hzz.commentbackend.dto.Result;
 import com.hzz.commentbackend.dto.UserDTO;
 import com.hzz.commentbackend.entity.User;
+import com.hzz.commentbackend.entity.UserInfo;
+import com.hzz.commentbackend.service.IUserInfoService;
 import com.hzz.commentbackend.service.IUserService;
 import com.hzz.commentbackend.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,9 @@ public class UserController {
 
     @Resource
     private IUserService userService;
+
+    @Resource
+    private IUserInfoService userInfoService;
 
     /**
      * 发送手机验证码
@@ -63,6 +68,20 @@ public class UserController {
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
         // 返回
         return Result.ok(userDTO);
+    }
+
+    @GetMapping("/info/{id}")
+    public Result info(@PathVariable("id") Long userId){
+        // 查询详情
+        UserInfo info = userInfoService.getById(userId);
+        if (info == null) {
+            // 没有详情，应该是第一次查看详情
+            return Result.ok();
+        }
+        info.setCreateTime(null);
+        info.setUpdateTime(null);
+        // 返回
+        return Result.ok(info);
     }
 
     /**
